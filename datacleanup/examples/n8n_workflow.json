@@ -1,0 +1,271 @@
+{
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/data-cleanup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Data Cleanup Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "data-cleanup-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://data-cleanup-service:8000/v1/cost-estimate",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "rows",
+              "value": "={{ $json.rows || 1000 }}"
+            },
+            {
+              "name": "ai_model",
+              "value": "={{ $json.ai_model || 'hybrid' }}"
+            },
+            {
+              "name": "ai_pricing_model", 
+              "value": "={{ $json.ai_pricing_model || 'gpt-4o-mini' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cost-estimate",
+      "name": "Get Cost Estimate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 200],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.estimate.cost_hybrid }}",
+              "operation": "smaller",
+              "value2": "={{ $json.budget_limit || 10 }}"
+            }
+          ]
+        }
+      },
+      "id": "cost-check",
+      "name": "Check Budget",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://data-cleanup-service:8000/v1/clean",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ai_model",
+              "value": "={{ $('Data Cleanup Webhook').first().json.ai_model || 'hybrid' }}"
+            },
+            {
+              "name": "ai_pricing_model",
+              "value": "={{ $('Data Cleanup Webhook').first().json.ai_pricing_model || 'gpt-4o-mini' }}"
+            },
+            {
+              "name": "validate",
+              "value": "{{ $('Data Cleanup Webhook').first().json.validate || 'true' }}"
+            },
+            {
+              "name": "want_pdf",
+              "value": "true"
+            },
+            {
+              "name": "bundle",
+              "value": "zip"
+            }
+          ]
+        },
+        "sendBinaryData": true,
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "process-file",
+      "name": "Process Data File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 100],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.folder_id }}",
+          "mode": "id"
+        },
+        "name": "cleaned_data_{{ new Date().toISOString().split('T')[0] }}.zip",
+        "binaryData": true,
+        "options": {}
+      },
+      "id": "save-to-drive",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1120, 100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "subject": "Data Cleanup Complete - ${{ $('Get Cost Estimate').first().json.savings_summary }}",
+        "message": "Hello,\n\nYour data cleanup process has been completed successfully!\n\n**Processing Summary:**\n- Cost Estimate: ${{ $('Get Cost Estimate').first().json.estimate.cost_hybrid }}\n- Savings: ${{ $('Get Cost Estimate').first().json.estimate.savings_absolute }} ({{ ($('Get Cost Estimate').first().json.estimate.savings_pct * 100).toFixed(1) }}%)\n- AI Model Used: {{ $('Data Cleanup Webhook').first().json.ai_model || 'hybrid' }}\n\n**Deliverables:**\nYour complete deliverables bundle has been saved to Google Drive:\n{{ $json.webViewLink }}\n\nThe bundle includes:\n- Original data file\n- Cleaned and categorized data\n- Processing summary (JSON)\n- Executive report (PDF)\n\nThank you for using our Data Cleanup service!\n\nBest regards,\nData Cleanup Team",
+        "toEmail": "={{ $('Data Cleanup Webhook').first().json.email }}",
+        "fromEmail": "noreply@datacleanup.com",
+        "fromName": "Data Cleanup Service"
+      },
+      "id": "send-notification",
+      "name": "Send Completion Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1340, 100],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"rejected\",\n  \"reason\": \"Budget exceeded\",\n  \"estimated_cost\": {{ $('Get Cost Estimate').first().json.estimate.cost_hybrid }},\n  \"budget_limit\": {{ $('Data Cleanup Webhook').first().json.budget_limit || 10 }},\n  \"message\": \"The estimated cost (${{ $('Get Cost Estimate').first().json.estimate.cost_hybrid }}) exceeds your budget limit. Please adjust your budget or data size.\"\n}",
+        "options": {}
+      },
+      "id": "budget-exceeded",
+      "name": "Budget Exceeded Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"completed\",\n  \"processing_summary\": {\n    \"cost_estimate\": {{ $('Get Cost Estimate').first().json.estimate.cost_hybrid }},\n    \"savings\": \"{{ $('Get Cost Estimate').first().json.savings_summary }}\",\n    \"ai_model\": \"{{ $('Data Cleanup Webhook').first().json.ai_model || 'hybrid' }}\"\n  },\n  \"deliverables\": {\n    \"google_drive_link\": \"{{ $('Save to Google Drive').first().json.webViewLink }}\",\n    \"file_name\": \"{{ $('Save to Google Drive').first().json.name }}\"\n  },\n  \"message\": \"Data cleanup completed successfully. Check your email for detailed results.\"\n}",
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 100]
+    }
+  ],
+  "connections": {
+    "Data Cleanup Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Cost Estimate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cost Estimate": {
+      "main": [
+        [
+          {
+            "node": "Check Budget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Budget": {
+      "main": [
+        [
+          {
+            "node": "Process Data File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Budget Exceeded Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Data File": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Send Completion Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Completion Email": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "data-cleanup",
+      "name": "data-cleanup"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

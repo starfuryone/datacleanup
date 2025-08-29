@@ -1,0 +1,1 @@
+# Contributing to Data Cleanup Micro-SaaS

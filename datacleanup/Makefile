@@ -1,0 +1,1 @@
+.PHONY: help install install-dev test lint format type-check clean build docker-build docker-run docs

@@ -1,0 +1,28 @@
+apiVersion: v2
+name: data-cleanup
+description: AI-powered spreadsheet cleaning microservice with hybrid cost optimization
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+home: https://github.com/yourusername/data-cleanup-microservice
+sources:
+  - https://github.com/yourusername/data-cleanup-microservice
+maintainers:
+  - name: DataCleanup Team
+    email: hello@datacleanup.com
+
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: 17.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: prometheus
+    version: 23.x.x
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: monitoring.prometheus.enabled
+
+---

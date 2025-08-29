@@ -1,0 +1,19 @@
+groups:
+  - name: data-cleanup-alerts
+    rules:
+    - alert: HighErrorRate
+      expr: rate(api_requests_total{status=~"5.."}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: High error rate detected
+        
+    - alert: HighLatency
+      expr: histogram_quantile(0.95, api_request_duration_seconds) > 30
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: High request latency detected
+```
