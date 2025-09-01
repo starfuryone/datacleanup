@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pandas
+openpyxl
+reportlab
+boto3
+python-multipart
+fuzzywuzzy
+python-Levenshtein
