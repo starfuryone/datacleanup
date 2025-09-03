@@ -1,4 +1,27 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
+# Virtualenvs / Python junk
+.venv/
+venv/
+**/__pycache__/
 *.py[cod]
-*$py.class
+*.pyo
+*.pyd
+*.egg-info/
+
+# Builds / dists
+build/
+dist/
+.build/
+
+# Runtime storage (keep the dir, ignore contents)
+storage/**
+!storage/.gitkeep
+
+# Local env
+.env
+.env.*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
